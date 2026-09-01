@@ -122,7 +122,7 @@ def test_prune_skips_entry_refreshed_after_selection(
     # is refreshed (expires_on moved into the future) before the delete runs.
     # The delete re-checks expiry against the cutoff captured at selection time,
     # so the refreshed entry must survive. We inject the refresh right after the
-    # command captures its cutoff by patching datetime.now used in the command.
+    # command captures its cutoff by patching the clock used in the command.
     expired = _add_entry(datetime.now() - timedelta(days=1))
     db.session.commit()  # pylint: disable=consider-using-transaction
 
@@ -131,22 +131,20 @@ def test_prune_skips_entry_refreshed_after_selection(
     real_now = datetime.now
     state = {"refreshed": False}
 
-    class _PatchedDatetime:
-        @staticmethod
-        def now() -> datetime:
-            # The command calls now() once to capture the cutoff. After that
-            # call, refresh the entry so the subsequent delete sees a future
-            # expires_on but still deletes against the original cutoff.
-            current = real_now()
-            if not state["refreshed"]:
-                state["refreshed"] = True
-                db.session.query(KeyValueEntry).filter(
-                    KeyValueEntry.id == expired.id
-                ).update({KeyValueEntry.expires_on: real_now() + timedelta(days=1)})
-                db.session.commit()  # pylint: disable=consider-using-transaction
-            return current
+    def patched_utcnow() -> datetime:
+        # The command calls utcnow() once to capture the cutoff. After that
+        # call, refresh the entry so the subsequent delete sees a future
+        # expires_on but still deletes against the original cutoff.
+        current = real_now()
+        if not state["refreshed"]:
+            state["refreshed"] = True
+            db.session.query(KeyValueEntry).filter(
+                KeyValueEntry.id == expired.id
+            ).update({KeyValueEntry.expires_on: real_now() + timedelta(days=1)})
+            db.session.commit()  # pylint: disable=consider-using-transaction
+        return current
 
-    with patch.object(prune_module, "datetime", _PatchedDatetime):
+    with patch.object(prune_module, "utcnow", patched_utcnow):
         KeyValuePruneCommand().run()
 
     remaining_ids = {row.id for row in db.session.query(KeyValueEntry.id).all()}
