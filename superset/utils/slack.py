@@ -18,6 +18,7 @@
 
 import functools
 import logging
+import pickle
 import warnings
 from http.client import RemoteDisconnected
 from typing import (
@@ -29,6 +30,7 @@ from typing import (
 )
 from urllib.error import HTTPError, URLError
 
+import redis
 from flask import current_app as app
 from slack_sdk import WebClient
 from slack_sdk.errors import (
@@ -37,6 +39,7 @@ from slack_sdk.errors import (
     SlackClientNotConnectedError,
 )
 from slack_sdk.http_retry.builtin_handlers import RateLimitErrorRetryHandler
+from sqlalchemy.exc import SQLAlchemyError
 
 from superset import feature_flag_manager
 from superset.constants import CACHE_DISABLED_TIMEOUT
@@ -147,6 +150,18 @@ SLACK_TRANSIENT_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
     ConnectionResetError,
     RemoteDisconnected,
     TimeoutError,
+)
+
+# Channel cache access is best-effort, so only failures a cache backend can
+# realistically raise are tolerated: socket and connection errors from external
+# backends (``OSError`` covers ``ConnectionError``), Redis client errors,
+# database errors from the metastore-backed cache, and payload serialization
+# errors.
+SLACK_CHANNEL_CACHE_ERRORS: tuple[type[Exception], ...] = (
+    OSError,
+    redis.RedisError,
+    SQLAlchemyError,
+    pickle.PickleError,
 )
 
 NO_SLACK_RECIPIENTS_MESSAGE = "No recipients saved in the report"
@@ -310,7 +325,7 @@ def _get_channels_safely(
     if cache_enabled and not force:
         try:
             cached_channels = cache_manager.cache.get(cache_key)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except SLACK_CHANNEL_CACHE_ERRORS:
             cached_channels = None
             logger.warning(
                 "Could not read cached Slack channels; fetching from Slack",
@@ -328,7 +343,7 @@ def _get_channels_safely(
                 channels,
                 timeout=effective_timeout,
             )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except SLACK_CHANNEL_CACHE_ERRORS:
             logger.warning(
                 "Could not cache Slack channels",
                 exc_info=True,
@@ -578,7 +593,7 @@ def refresh_cached_slack_channels_with_search(
             is not False
         )
         should_refresh = claim_recorded
-    except Exception:  # pylint: disable=broad-exception-caught
+    except SLACK_CHANNEL_CACHE_ERRORS:
         logger.warning(
             "Could not claim Slack channel refresh cooldown; refreshing from Slack",
             exc_info=True,
@@ -587,7 +602,7 @@ def refresh_cached_slack_channels_with_search(
     if not should_refresh:
         try:
             cached_channels = cache_manager.cache.get(cache_key)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except SLACK_CHANNEL_CACHE_ERRORS:
             cached_channels = None
             logger.warning(
                 "Could not read Slack channels after another worker claimed refresh",
@@ -618,7 +633,7 @@ def refresh_cached_slack_channels_with_search(
                 )
                 is not False
             )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except SLACK_CHANNEL_CACHE_ERRORS:
             cache_updated = False
             logger.warning(
                 "Could not cache refreshed Slack channels",
@@ -636,7 +651,7 @@ def refresh_cached_slack_channels_with_search(
         if not keep_claim:
             try:
                 cache_manager.cache.delete(cooldown_key)
-            except Exception:  # pylint: disable=broad-exception-caught
+            except SLACK_CHANNEL_CACHE_ERRORS:
                 logger.warning(
                     "Could not release Slack channel refresh cooldown",
                     exc_info=True,
