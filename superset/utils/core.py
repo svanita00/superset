@@ -606,7 +606,9 @@ def markdown(raw: str, markup_wrap: bool | None = False) -> str:
     # nh3 preserves supported link attributes and enforces a safe rel value.
     safe = nh3.clean(safe, tags=safe_markdown_tags, attributes=safe_markdown_attrs)
     if markup_wrap:
-        safe = Markup(safe)
+        # `safe` is the output of nh3.clean above, which strips every tag and
+        # attribute outside the allowlists, so marking it safe is intentional.
+        safe = Markup(safe)  # noqa: S704
     return safe
 
 

@@ -149,6 +149,37 @@ class TestSlice:
         assert '"onmouseover' not in html
 
 
+def test_slice_link_escapes_slice_name(app_context: None) -> None:
+    """A malicious chart name must be escaped in the rendered anchor.
+
+    `slice_link` is rendered as raw HTML by the FAB list view, so the
+    user-controlled name must not be able to close the anchor and inject
+    markup.
+    """
+    slc = Slice()
+    slc.id = 42
+    slc.slice_name = '"><script>alert(1)</script>'
+
+    with current_app.test_request_context("/"):
+        link = str(slc.slice_link)
+
+    assert "<script>" not in link
+    assert '"><script' not in link
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in link
+
+
+def test_slice_link_renders_plain_name(app_context: None) -> None:
+    """A normal chart name still renders a working explore link."""
+    slc = Slice()
+    slc.id = 42
+    slc.slice_name = "Sales by region"
+
+    with current_app.test_request_context("/"):
+        link = str(slc.slice_link)
+
+    assert link == '<a href="/explore/?slice_id=42">Sales by region</a>'
+
+
 def test_thumbnail_url_is_router_relative_at_root(app_context: None) -> None:
     """thumbnail_url uses url_for, so at root it keeps the legacy shape."""
     slc = Slice()
