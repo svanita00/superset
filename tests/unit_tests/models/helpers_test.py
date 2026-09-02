@@ -5107,3 +5107,22 @@ def test_filter_adhoc_column(database: Database) -> None:
     assert "real_name AS full_name" in sql
     assert "WHERE" in sql
     assert "lower(real_name) LIKE lower('Zona%')" in sql
+
+
+def test_changed_on_escapes_interpolated_value() -> None:
+    """`AuditMixinNullable.changed_on_` must escape the value it renders.
+
+    The renderer emits raw HTML into the FAB list view, so any markup in the
+    interpolated value has to be escaped rather than passed through.
+    """
+    from superset.models.slice import Slice
+
+    slc = Slice()
+    slc.changed_on = '"><script>alert(1)</script>'
+
+    html = str(slc.changed_on_())
+
+    assert "<script>" not in html
+    assert html == (
+        '<span class="no-wrap">&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</span>'
+    )

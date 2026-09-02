@@ -47,6 +47,27 @@ def test_dashboard_link_escapes_slug(app_context: None) -> None:
     assert "My Dashboard" in link
 
 
+def test_dashboard_link_escapes_title(app_context: None) -> None:
+    """A malicious dashboard title must be escaped in the rendered anchor.
+
+    The title is fully user-controlled, so interpolating it into the `Markup`
+    unescaped would let it close the anchor and inject a script tag into the
+    FAB list view.
+    """
+    dash = Dashboard()
+    dash.id = 1
+    dash.dashboard_title = '"><script>alert(1)</script>'
+    dash.slug = "sales"
+
+    with current_app.test_request_context("/"):
+        link = str(dash.dashboard_link())
+
+    assert "<script>" not in link
+    assert '"><script' not in link
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in link
+    assert link.startswith('<a href="/dashboard/sales/">')
+
+
 def test_dashboard_link_renders_plain_slug(app_context: None) -> None:
     """A normal slug renders a working link under a subdirectory deployment.
 
