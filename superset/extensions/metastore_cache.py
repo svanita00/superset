@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID, uuid3
 
@@ -74,7 +74,7 @@ class SupersetMetastoreCache(BaseCache):
     def _get_expiry(self, timeout: Optional[int]) -> Optional[datetime]:
         timeout = self._normalize_timeout(timeout)
         if timeout is not None and timeout > 0:
-            return datetime.now() + timedelta(seconds=timeout)
+            return datetime.now(timezone.utc) + timedelta(seconds=timeout)
         return None
 
     def set(self, key: str, value: Any, timeout: Optional[int] = None) -> bool:

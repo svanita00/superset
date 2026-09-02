@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from datetime import datetime
-
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import relationship
 from superset_core.common.models import KeyValue as CoreKeyValue
 
 from superset import security_manager
+from superset.key_value.utils import utcnow
 from superset.models.helpers import AuditMixinNullable, ImportExportMixin
 
 VALUE_MAX_SIZE = 2**24 - 1
@@ -42,4 +41,4 @@ class KeyValueEntry(CoreKeyValue, AuditMixinNullable, ImportExportMixin):
     changed_by = relationship(security_manager.user_model, foreign_keys=[changed_by_fk])
 
     def is_expired(self) -> bool:
-        return self.expires_on is not None and self.expires_on <= datetime.now()
+        return self.expires_on is not None and self.expires_on <= utcnow()

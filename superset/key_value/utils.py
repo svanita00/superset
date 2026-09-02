@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from datetime import datetime, timezone
 from hashlib import md5
 from secrets import token_urlsafe
 from typing import Any
@@ -184,3 +185,27 @@ def get_fallback_algorithms(app: Any = None) -> list[str]:
     """
     app = app or current_app
     return app.config.get("HASH_ALGORITHM_FALLBACKS", [])
+
+
+def utcnow() -> datetime:
+    """
+    Current UTC time as a naive datetime.
+
+    The ``key_value`` timestamp columns are timezone-naive, so all values written
+    to and compared against them are naive UTC.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def to_naive_utc(value: datetime | None) -> datetime | None:
+    """
+    Convert a caller-supplied timestamp to naive UTC.
+
+    Aware values are converted to UTC before the tzinfo is dropped. Naive values are
+    taken to be UTC already, which is the convention for every ``expires_on`` producer
+    in the codebase.
+    """
+    if value is not None and value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    return value

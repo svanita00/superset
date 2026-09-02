@@ -18,13 +18,13 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
 
 import sqlalchemy as sa
 
 from superset import db
 from superset.commands.base import BaseCommand
 from superset.key_value.models import KeyValueEntry
+from superset.key_value.utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +68,11 @@ class KeyValuePruneCommand(BaseCommand):
 
         # Capture a single cutoff timestamp and reuse it for both the selection
         # and the delete. Reusing the same value (rather than calling
-        # datetime.now() again at delete time) keeps the delete predicate
+        # utcnow() again at delete time) keeps the delete predicate
         # consistent with the selection and re-checks expiry on delete, so an
         # entry refreshed (expires_on moved into the future) between selection
         # and deletion is not removed.
-        cutoff = datetime.now()
+        cutoff = utcnow()
 
         # Select all IDs whose expiry has already passed. Entries without an
         # expiry (expires_on IS NULL) never expire and are left untouched. The
