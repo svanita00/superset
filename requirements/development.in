@@ -19,6 +19,9 @@
 -e .[development,bigquery,cockroachdb,druid,duckdb,fastmcp,gevent,gsheets,mysql,postgres,presto,prophet,trino,thumbnails]
 -e ./superset-extensions-cli[test]
 
+# Security: GHSA-58pv-8j8x-9vj2 (HIGH) - path traversal in jaraco.context
+# (transitive via keyring)
+jaraco.context>=6.1.0
 # python-multipart < 0.0.30 is vulnerable to a ReDoS / CPU denial of service
 # (GHSA-5rvq-cxj2-64vf). It is pulled in transitively via fastmcp/mcp.
 python-multipart>=0.0.30
