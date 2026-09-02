@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pickle
 import warnings
 from email.message import Message
 from http.client import RemoteDisconnected
@@ -22,6 +23,7 @@ from unittest.mock import call
 from urllib.error import HTTPError, URLError
 
 import pytest
+import redis
 from slack_sdk.errors import (
     SlackApiError,
     SlackClientConfigurationError,
@@ -33,6 +35,7 @@ from slack_sdk.http_retry.builtin_handlers import (
     ConnectionErrorRetryHandler,
     RateLimitErrorRetryHandler,
 )
+from sqlalchemy.exc import SQLAlchemyError
 
 from superset.constants import CACHE_DISABLED_TIMEOUT
 from superset.exceptions import SupersetException
@@ -53,6 +56,15 @@ from superset.utils.slack import (
     SlackV2ProbeClientError,
     SlackV2ProbeError,
 )
+
+# One instance per member of SLACK_CHANNEL_CACHE_ERRORS, so the supported cache
+# failure paths stay covered as backends are added or removed.
+SUPPORTED_CACHE_ERRORS = [
+    pytest.param(ConnectionError("Redis unavailable"), id="oserror"),
+    pytest.param(redis.RedisError("Redis command failed"), id="redis"),
+    pytest.param(SQLAlchemyError("metastore unavailable"), id="sqlalchemy"),
+    pytest.param(pickle.PickleError("unreadable payload"), id="pickle"),
+]
 
 
 class MockResponse:
@@ -506,6 +518,64 @@ The server responded with: missing scope: channels:read"""
         assert used_cache is False
         logger.warning.assert_called_once()
 
+    @pytest.mark.parametrize("cache_error", SUPPORTED_CACHE_ERRORS)
+    def test_supported_cache_read_errors_fall_back_to_live_channels(
+        self, mocker, cache_error
+    ) -> None:
+        live_channels = [{"id": "C2", "name": "live"}]
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.get",
+            side_effect=cache_error,
+        )
+        mocker.patch(
+            "superset.utils.slack._get_channels",
+            return_value=live_channels,
+        )
+        mocker.patch("superset.utils.slack.cache_manager.cache.set")
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+
+        assert get_channels_with_search() == live_channels
+
+    @pytest.mark.parametrize("cache_error", SUPPORTED_CACHE_ERRORS)
+    def test_supported_cache_write_errors_preserve_live_channels(
+        self, mocker, cache_error
+    ) -> None:
+        live_channels = [{"id": "C2", "name": "live"}]
+        mocker.patch("superset.utils.slack.cache_manager.cache.get", return_value=None)
+        mocker.patch(
+            "superset.utils.slack._get_channels",
+            return_value=live_channels,
+        )
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.set",
+            side_effect=cache_error,
+        )
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+
+        assert get_channels_with_search() == live_channels
+
+    def test_unsupported_cache_read_error_is_not_swallowed(self, mocker) -> None:
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.get",
+            side_effect=RuntimeError("unexpected cache failure"),
+        )
+        channel_fetch = mocker.patch("superset.utils.slack._get_channels")
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+
+        with pytest.raises(RuntimeError, match="unexpected cache failure"):
+            get_channels_with_search()
+
+        channel_fetch.assert_not_called()
+
     def test_metastore_cache_miss_fetches_without_cache_write(self, mocker) -> None:
         live_channels = [{"id": "C2", "name": "live"}]
         mocker.patch("superset.utils.slack.cache_manager.cache.get", return_value=None)
@@ -837,6 +907,79 @@ The server responded with: missing scope: channels:read"""
 
         channel_search.assert_called_once_with(force=True, cache=False)
         logger.warning.assert_called_once()
+
+    @pytest.mark.parametrize("cache_error", SUPPORTED_CACHE_ERRORS)
+    def test_supported_cooldown_claim_errors_use_live_channels(
+        self, mocker, cache_error
+    ) -> None:
+        refreshed_channels = [{"id": "C2", "name": "new", "is_private": False}]
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.add",
+            side_effect=cache_error,
+        )
+        channel_search = mocker.patch(
+            "superset.utils.slack.get_channels_with_search",
+            return_value=refreshed_channels,
+        )
+
+        assert (
+            refresh_cached_slack_channels_with_search(search_string="new")
+            == refreshed_channels
+        )
+
+        channel_search.assert_called_once_with(force=True, cache=False)
+
+    @pytest.mark.parametrize("cache_error", SUPPORTED_CACHE_ERRORS)
+    def test_supported_cooldown_release_errors_preserve_refreshed_channels(
+        self, mocker, cache_error
+    ) -> None:
+        refreshed_channels = [{"id": "C2", "name": "new", "is_private": False}]
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+        mocker.patch("superset.utils.slack.cache_manager.cache.add", return_value=True)
+        mocker.patch(
+            "superset.utils.slack.get_channels_with_search",
+            return_value=refreshed_channels,
+        )
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.set",
+            side_effect=cache_error,
+        )
+        cache_delete = mocker.patch(
+            "superset.utils.slack.cache_manager.cache.delete",
+            side_effect=cache_error,
+        )
+
+        assert (
+            refresh_cached_slack_channels_with_search(search_string="new")
+            == refreshed_channels
+        )
+
+        cache_delete.assert_called_once_with(
+            "slack_conversations_list_refresh_cooldown"
+        )
+
+    def test_unsupported_cooldown_claim_error_is_not_swallowed(self, mocker) -> None:
+        mocker.patch(
+            "superset.utils.slack._slack_channel_cache_uses_report_session",
+            return_value=False,
+        )
+        mocker.patch(
+            "superset.utils.slack.cache_manager.cache.add",
+            side_effect=RuntimeError("unexpected cache failure"),
+        )
+        channel_search = mocker.patch("superset.utils.slack.get_channels_with_search")
+
+        with pytest.raises(RuntimeError, match="unexpected cache failure"):
+            refresh_cached_slack_channels_with_search(search_string="new")
+
+        channel_search.assert_not_called()
 
     def test_concurrent_refresh_cache_read_failure_skips_live_listing(
         self, mocker
