@@ -101,6 +101,26 @@ def _is_secret_key(key: str) -> bool:
     return any(marker in lowered for marker in SECRET_KEY_MARKERS)
 
 
+def _is_secret_prop(prop: Any) -> bool:
+    """
+    Whether a JSON schema property is marked as a secret, looking through
+    ``anyOf``/``oneOf``/``allOf`` so ``Optional[SecretStr]`` is detected.
+    """
+    if not isinstance(prop, dict):
+        return False
+    if (
+        prop.get("format") == "password"
+        or prop.get("writeOnly")
+        or prop.get("x-secret")
+    ):
+        return True
+    return any(
+        _is_secret_prop(variant)
+        for combinator in ("anyOf", "oneOf", "allOf")
+        for variant in prop.get(combinator, [])
+    )
+
+
 def _schema_secret_keys(schema: dict[str, Any]) -> set[str]:
     """
     Collect property names a Pydantic JSON schema marks as sensitive.
@@ -115,11 +135,7 @@ def _schema_secret_keys(schema: dict[str, Any]) -> set[str]:
     def walk(node: Any) -> None:
         if isinstance(node, dict):
             for name, prop in node.get("properties", {}).items():
-                if isinstance(prop, dict) and (
-                    prop.get("format") == "password"
-                    or prop.get("writeOnly")
-                    or prop.get("x-secret")
-                ):
+                if _is_secret_prop(prop):
                     keys.add(name)
             for value in node.values():
                 walk(value)

@@ -1191,6 +1191,23 @@ def test_get_semantic_layer_masks_schema_declared_secrets(
     }
 
 
+def test_schema_secret_keys_optional_secret_str() -> None:
+    """Optional[SecretStr] (rendered as anyOf) is detected as a secret."""
+    from pydantic import BaseModel, SecretStr
+
+    from superset.semantic_layers.api import _schema_secret_keys
+
+    class Conn(BaseModel):
+        pin: SecretStr | None = None
+
+    class Config(BaseModel):
+        account: str
+        pat: SecretStr | None = None
+        conn: Conn | None = None
+
+    assert _schema_secret_keys(Config.model_json_schema()) == {"pat", "pin"}
+
+
 @SEMANTIC_LAYERS_APP
 def test_get_list_semantic_layers_masks_secrets(
     client: Any,
