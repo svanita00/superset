@@ -198,7 +198,13 @@ def utcnow() -> datetime:
 
 
 def to_naive_utc(value: datetime | None) -> datetime | None:
-    """Convert a caller-supplied timestamp to naive UTC, leaving naive values as is."""
+    """
+    Convert a caller-supplied timestamp to naive UTC.
+
+    Aware values are converted to UTC before the tzinfo is dropped. Naive values are
+    taken to be UTC already, which is the convention for every ``expires_on`` producer
+    in the codebase.
+    """
     if value is not None and value.tzinfo is not None:
         return value.astimezone(timezone.utc).replace(tzinfo=None)
 

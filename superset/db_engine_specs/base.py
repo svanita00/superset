@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import re
 import warnings
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from inspect import signature
 from re import Match, Pattern
 from typing import (
@@ -815,7 +815,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
             value={"code_verifier": code_verifier},
             codec=JsonKeyValueCodec(),
             key=UUID(tab_id),
-            expires_on=datetime.now() + timedelta(minutes=5),
+            expires_on=datetime.now(timezone.utc) + timedelta(minutes=5),
         )
         # We need to commit here because we're going to raise an exception, which will
         # revert any non-commited changes.
