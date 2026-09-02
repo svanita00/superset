@@ -56,7 +56,7 @@ from superset.commands.semantic_layer.update import (
     UpdateSemanticLayerCommand,
     UpdateSemanticViewCommand,
 )
-from superset.constants import MODEL_API_RW_METHOD_PERMISSION_MAP
+from superset.constants import MODEL_API_RW_METHOD_PERMISSION_MAP, PASSWORD_MASK
 from superset.daos.semantic_layer import SemanticLayerDAO
 from superset.datasets.schemas import get_delete_ids_schema
 from superset.exceptions import SupersetSecurityException
@@ -81,6 +81,98 @@ from superset.views.base_api import (
 logger = logging.getLogger(__name__)
 
 
+SECRET_KEY_MARKERS = (
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "private_key",
+    "privatekey",
+    "api_key",
+    "apikey",
+    "access_key",
+    "credential",
+    "passphrase",
+)
+
+
+def _is_secret_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(marker in lowered for marker in SECRET_KEY_MARKERS)
+
+
+def _schema_secret_keys(schema: dict[str, Any]) -> set[str]:
+    """
+    Collect property names a Pydantic JSON schema marks as sensitive.
+
+    Pydantic renders ``SecretStr``/``SecretBytes`` fields with
+    ``format: password`` and ``writeOnly: true``; implementations can also flag
+    arbitrary fields with ``x-secret: true``. Nested ``$ref``s, ``anyOf``/``oneOf``
+    variants and ``$defs`` are walked so discriminated unions are covered too.
+    """
+    keys: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for name, prop in node.get("properties", {}).items():
+                if isinstance(prop, dict) and (
+                    prop.get("format") == "password"
+                    or prop.get("writeOnly")
+                    or prop.get("x-secret")
+                ):
+                    keys.add(name)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(schema)
+    return keys
+
+
+def _mask_configuration(
+    layer_type: str,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Return a copy of ``config`` with secret values replaced by ``PASSWORD_MASK``.
+
+    Secret keys are derived from the layer implementation's configuration schema
+    when the type is registered, and always include well-known credential key
+    names as a fallback so unknown or unregistered types never leak secrets.
+    """
+    schema_keys: set[str] = set()
+    if (cls := registry.get(layer_type)) is not None:
+        try:
+            schema_keys = _schema_secret_keys(
+                cls.configuration_class.model_json_schema()
+            )
+        except Exception:  # pylint: disable=broad-except
+            logger.warning(
+                "Unable to derive secret fields for semantic layer type %s",
+                layer_type,
+                exc_info=True,
+            )
+
+    def mask(node: Any) -> Any:
+        if isinstance(node, dict):
+            return {
+                key: (
+                    PASSWORD_MASK
+                    if value is not None
+                    and (key in schema_keys or _is_secret_key(str(key)))
+                    else mask(value)
+                )
+                for key, value in node.items()
+            }
+        if isinstance(node, list):
+            return [mask(item) for item in node]
+        return node
+
+    return mask(config)
+
+
 def _serialize_layer(layer: SemanticLayer) -> dict[str, Any]:
     config = layer.configuration
     if isinstance(config, str):
@@ -91,7 +183,7 @@ def _serialize_layer(layer: SemanticLayer) -> dict[str, Any]:
         "description": layer.description,
         "type": layer.type,
         "cache_timeout": layer.cache_timeout,
-        "configuration": config or {},
+        "configuration": _mask_configuration(layer.type, config or {}),
         "changed_on_delta_humanized": layer.changed_on_delta_humanized(),
     }
 

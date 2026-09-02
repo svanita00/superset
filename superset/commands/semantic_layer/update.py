@@ -34,6 +34,7 @@ from superset.commands.semantic_layer.exceptions import (
     SemanticViewUpdateFailedError,
 )
 from superset.commands.utils import current_user_can_modify_object
+from superset.constants import PASSWORD_MASK
 from superset.daos.semantic_layer import SemanticLayerDAO, SemanticViewDAO
 from superset.semantic_layers.models import SemanticLayer, SemanticView
 from superset.semantic_layers.registry import registry
@@ -41,6 +42,27 @@ from superset.utils import json
 from superset.utils.decorators import on_error, transaction
 
 logger = logging.getLogger(__name__)
+
+
+def _unmask_configuration(submitted: Any, stored: Any) -> Any:
+    """
+    Replace ``PASSWORD_MASK`` placeholders in ``submitted`` with the values
+    persisted in ``stored``, so masked secrets returned by the read API can be
+    echoed back unchanged on update without overwriting the real secret.
+    """
+    if submitted == PASSWORD_MASK:
+        return stored
+    if isinstance(submitted, dict) and isinstance(stored, dict):
+        return {
+            key: _unmask_configuration(value, stored.get(key))
+            for key, value in submitted.items()
+        }
+    if isinstance(submitted, list) and isinstance(stored, list):
+        return [
+            _unmask_configuration(value, stored[i] if i < len(stored) else None)
+            for i, value in enumerate(submitted)
+        ]
+    return submitted
 
 
 class UpdateSemanticViewCommand(BaseCommand):
@@ -122,6 +144,12 @@ class UpdateSemanticLayerCommand(BaseCommand):
             raise SemanticLayerInvalidError(f"Name already exists: {name}")
 
         if configuration := self._properties.get("configuration"):
+            if isinstance(configuration, dict):
+                stored = self._model.configuration
+                if isinstance(stored, str):
+                    stored = json.loads(stored)
+                configuration = _unmask_configuration(configuration, stored or {})
+                self._properties["configuration"] = configuration
             sl_type = self._model.type
             cls = registry[sl_type]
             cls.from_configuration(configuration)
