@@ -157,6 +157,14 @@ SLACK_TRANSIENT_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
 # backends (``OSError`` covers ``ConnectionError``), Redis client errors,
 # database errors from the metastore-backed cache, and payload serialization
 # errors.
+#
+# Flask-Caching and cachelib define no cache-specific exception hierarchy —
+# backends propagate their client library's own exceptions — so this list is
+# maintained explicitly instead of catching a backend-agnostic base class. The
+# tradeoff is that a backend whose client errors fall outside this list (for
+# example ``pylibmc`` for Memcached) propagates instead of degrading to a live
+# Slack fetch; that is preferred over both swallowing genuine bugs and taking on
+# optional backend-specific imports here.
 SLACK_CHANNEL_CACHE_ERRORS: tuple[type[Exception], ...] = (
     OSError,
     redis.RedisError,
