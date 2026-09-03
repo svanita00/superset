@@ -348,9 +348,16 @@ class DatasetValidator:
 
     @staticmethod
     def _get_dataset_context(dataset_id: int | str) -> DatasetContext | None:
-        """Fetch the ORM dataset by ID/UUID and build a :class:`DatasetContext`."""
+        """Fetch the ORM dataset by ID/UUID and build a :class:`DatasetContext`.
+
+        Returns ``None`` when the dataset does not exist *or* the current user
+        lacks datasource access, so callers surface the same opaque
+        "dataset not found" error in both cases and never leak schema
+        metadata (column/metric names) for inaccessible datasets.
+        """
         try:
             from superset.daos.dataset import DatasetDAO
+            from superset.mcp_service.auth import has_dataset_access
 
             if isinstance(dataset_id, int) or (
                 isinstance(dataset_id, str) and dataset_id.isdigit()
@@ -358,6 +365,13 @@ class DatasetValidator:
                 dataset = DatasetDAO.find_by_id(int(dataset_id))
             else:
                 dataset = DatasetDAO.find_by_id(dataset_id, id_column="uuid")
+
+            if dataset is not None and not has_dataset_access(dataset):
+                logger.warning(
+                    "Denied dataset context for %s: user lacks datasource access",
+                    dataset_id,
+                )
+                return None
 
             return build_dataset_context_from_orm(dataset)
 
