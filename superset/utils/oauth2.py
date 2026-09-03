@@ -52,6 +52,13 @@ logger = logging.getLogger(__name__)
 PKCE_CODE_VERIFIER_LENGTH = 64
 
 
+def _as_utc(dttm: datetime) -> datetime:
+    """
+    Interpret a timezone-naive datetime read from the metadata DB as UTC.
+    """
+    return dttm if dttm.tzinfo else dttm.replace(tzinfo=timezone.utc)
+
+
 def generate_code_verifier() -> str:
     """
     Generate a PKCE code verifier (RFC 7636).
@@ -116,7 +123,9 @@ def get_oauth2_access_token(
     if token is None:
         return None
 
-    if token.access_token and datetime.now() < token.access_token_expiration:
+    if token.access_token and datetime.now(tz=timezone.utc) < _as_utc(
+        token.access_token_expiration
+    ):
         return token.access_token
 
     if token.refresh_token:
@@ -153,7 +162,9 @@ def refresh_oauth2_token(
         if token is None:
             return None
 
-        if token.access_token and datetime.now() < token.access_token_expiration:
+        if token.access_token and datetime.now(tz=timezone.utc) < _as_utc(
+            token.access_token_expiration
+        ):
             return token.access_token
 
         if not token.refresh_token:
@@ -195,9 +206,12 @@ def refresh_oauth2_token(
             return None
 
         token.access_token = token_response["access_token"]
-        token.access_token_expiration = datetime.now() + timedelta(
-            seconds=token_response["expires_in"]
-        )
+        # the column is timezone-naive, so the UTC expiration is stored without an
+        # explicit timezone
+        token.access_token_expiration = (
+            datetime.now(tz=timezone.utc)
+            + timedelta(seconds=token_response["expires_in"])
+        ).replace(tzinfo=None)
         # Support single-use refresh tokens
         if new_refresh_token := token_response.get("refresh_token"):
             token.refresh_token = new_refresh_token
