@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, TYPE_CHECKING
+from typing import Any, ClassVar, TYPE_CHECKING
 
 from flask_babel import gettext as __
 from sqlalchemy import types
@@ -120,7 +120,9 @@ class SqliteEngineSpec(BaseEngineSpec):
         }
     )
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         COLUMN_DOES_NOT_EXIST_REGEX: (
             __('We can\'t seem to resolve the column "%(column_name)s"'),
             SupersetErrorType.COLUMN_DOES_NOT_EXIST_ERROR,

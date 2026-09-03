@@ -17,7 +17,7 @@
 import logging
 import re
 from re import Pattern
-from typing import Any, Callable, Optional
+from typing import Any, Callable, ClassVar, Optional
 
 from flask_babel import gettext as __
 from sqlalchemy import Numeric, TEXT, types
@@ -89,7 +89,9 @@ class OceanBaseEngineSpec(MySQLEngineSpec):
     # against real MySQL behavior, not OceanBase's distributed query engine;
     # disable it here until someone confirms the same expressions against a live
     # OceanBase instance.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     metadata = {
         "description": "OceanBase is a distributed relational database.",
@@ -171,7 +173,9 @@ class OceanBaseEngineSpec(MySQLEngineSpec):
         ),
     )
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_ACCESS_DENIED_REGEX: (
             __('Either the username "%(username)s" or the password is incorrect.'),
             SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR,

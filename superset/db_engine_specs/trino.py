@@ -23,7 +23,7 @@ import threading
 import time
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, ClassVar, TYPE_CHECKING
 
 import requests
 from flask import copy_current_request_context, ctx, current_app as app, Flask, g
@@ -84,7 +84,7 @@ class TrinoEngineSpec(PrestoBaseEngineSpec):
     # (e.g. when a value's precision/scale can't be inferred from the
     # column type alone), which later breaks numeric post-processing
     # (e.g. pivot with a mean aggregate). Coerce them back to Decimal.
-    column_type_mutators: dict[TypeEngine, Callable[[Any], Any]] = {
+    column_type_mutators: ClassVar[dict[TypeEngine, Callable[[Any], Any]]] = {
         **PrestoBaseEngineSpec.column_type_mutators,
         DECIMAL: lambda val: Decimal(val) if isinstance(val, str) else val,
     }

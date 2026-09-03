@@ -20,7 +20,7 @@ import logging
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from flask_babel import gettext as __
 from sqlalchemy import types
@@ -135,7 +135,9 @@ class MssqlEngineSpec(BaseEngineSpec):
         ),
     )
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_ACCESS_DENIED_REGEX: (
             __(
                 'Either the username "%(username)s", password, '

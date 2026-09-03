@@ -21,7 +21,7 @@ import logging
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, TYPE_CHECKING, TypedDict
+from typing import Any, ClassVar, TYPE_CHECKING, TypedDict
 from urllib import parse
 
 from apispec import APISpec
@@ -223,7 +223,9 @@ class DatastoreEngineSpec(BaseEngineSpec):  # pylint: disable=too-many-public-me
         TimeGrain.YEAR: "{func}({col}, YEAR)",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_DATABASE_PERMISSIONS_REGEX: (
             __(
                 "Unable to connect. Verify that the following roles are set "

@@ -21,7 +21,7 @@ import logging
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, TYPE_CHECKING, TypedDict
+from typing import Any, ClassVar, TYPE_CHECKING, TypedDict
 
 import pandas as pd
 from apispec import APISpec
@@ -134,7 +134,9 @@ class GSheetsEngineSpec(ShillelaghEngineSpec):
         "$.oauth2_client_info.secret": "OAuth2 Client Secret",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         SYNTAX_ERROR_REGEX: (
             __(
                 'Please check your query for syntax errors near "%(server_error)s". '
