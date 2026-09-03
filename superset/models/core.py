@@ -35,6 +35,7 @@ from typing import Any, Callable, cast, Optional, TYPE_CHECKING
 
 import numpy
 import pandas as pd
+import redis
 import sqlalchemy as sqla
 import sshtunnel
 from flask import current_app as app, g, has_app_context
@@ -161,7 +162,7 @@ def clear_bootstrap_cache(
 
     try:
         cache_manager.cache.delete_memoized(cached_common_bootstrap_data)
-    except Exception as ex:  # pylint: disable=broad-except
+    except (OSError, RuntimeError, AttributeError, KeyError, redis.RedisError) as ex:
         logger.warning("Failed to clear theme bootstrap cache: %s", ex)
 
 
@@ -427,7 +428,14 @@ class Database(CoreDatabase, AuditMixinNullable, ImportExportMixin):  # pylint: 
                 masked_uri,
                 encrypted_extra=encrypted_config,
             )
-        except Exception:  # pylint: disable=broad-except
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            AttributeError,
+            DatabaseInvalidError,
+            ValidationError,
+        ):
             parameters = {}
 
         return parameters
@@ -436,7 +444,7 @@ class Database(CoreDatabase, AuditMixinNullable, ImportExportMixin):  # pylint: 
     def parameters_schema(self) -> dict[str, Any]:
         try:
             parameters_schema = self.db_engine_spec.parameters_json_schema()  # type: ignore
-        except Exception:  # pylint: disable=broad-except
+        except (KeyError, TypeError, ValueError, AttributeError, DatabaseInvalidError):
             parameters_schema = {}
         return parameters_schema
 
@@ -480,7 +488,7 @@ class Database(CoreDatabase, AuditMixinNullable, ImportExportMixin):  # pylint: 
     def engine_information(self) -> dict[str, Any]:
         try:
             engine_information = self.db_engine_spec.get_public_information()
-        except Exception:  # pylint: disable=broad-except
+        except (AttributeError, DatabaseInvalidError):
             engine_information = {}
         return engine_information
 
