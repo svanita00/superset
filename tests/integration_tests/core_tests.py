@@ -613,8 +613,9 @@ class TestCore(SupersetTestCase):
         data = {"sql": json.dumps("select 1"), "latest_query_id": json.dumps(client_id)}
         response = self.client.put(f"/tabstateview/{tab_state_id}", data=data)
         assert response.status_code == 400
-        # generate query
-        db.session.add(Query(client_id=client_id, database_id=1))
+        # generate query owned by the current user
+        admin_id = self.get_user(ADMIN_USERNAME).id
+        db.session.add(Query(client_id=client_id, database_id=1, user_id=admin_id))
         db.session.commit()
         # update tab state with a valid client_id
         response = self.client.put(f"/tabstateview/{tab_state_id}", data=data)
@@ -623,6 +624,57 @@ class TestCore(SupersetTestCase):
         data["latest_query_id"] = "null"
         response = self.client.put(f"/tabstateview/{tab_state_id}", data=data)
         assert response.status_code == 200
+
+    def test_tabstate_update_rejects_foreign_query_and_unknown_fields(self):
+        """
+        PUT /tabstateview/<id> must not allow attaching another user's query
+        (which would disclose its SQL via GET) nor updating arbitrary columns.
+        """
+        victim_client_id = "victimq1"
+        gamma_id = self.get_user(GAMMA_USERNAME).id
+        db.session.add(
+            Query(
+                client_id=victim_client_id,
+                database_id=1,
+                user_id=gamma_id,
+                sql="SELECT 'secret'",
+            )
+        )
+        db.session.commit()
+
+        self.login(ADMIN_USERNAME)
+        data = {
+            "queryEditor": json.dumps(
+                {
+                    "name": "Untitled Query foo",
+                    "dbId": 1,
+                    "schema": None,
+                    "autorun": False,
+                    "sql": "SELECT ...",
+                    "queryLimit": 1000,
+                }
+            )
+        }
+        tab_state_id = self.get_json_resp("/tabstateview/", data=data)["id"]
+
+        response = self.client.put(
+            f"/tabstateview/{tab_state_id}",
+            data={"latest_query_id": json.dumps(victim_client_id)},
+        )
+        assert response.status_code == 400
+        payload = self.get_json_resp(f"/tabstateview/{tab_state_id}")
+        assert payload["latest_query"] is None
+
+        response = self.client.put(
+            f"/tabstateview/{tab_state_id}",
+            data={"user_id": json.dumps(gamma_id)},
+        )
+        assert response.status_code == 400
+        payload = self.get_json_resp(f"/tabstateview/{tab_state_id}")
+        assert payload["user_id"] == self.get_user(ADMIN_USERNAME).id
+
+        db.session.query(Query).filter_by(client_id=victim_client_id).delete()
+        db.session.commit()
 
     def test_virtual_table_explore_visibility(self):
         # test that default visibility it set to True

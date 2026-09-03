@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=consider-using-transaction
 import logging
+from typing import Any
 
 from flask import request, Response
 from flask_appbuilder import expose
@@ -49,6 +50,51 @@ class SavedQueryView(BaseSupersetView):
 
 def _get_tab_user_id(tab_state_id: int) -> int | None:
     return db.session.query(TabState.user_id).filter_by(id=tab_state_id).scalar()
+
+
+TAB_STATE_UPDATABLE_FIELDS = frozenset(
+    {
+        "label",
+        "active",
+        "database_id",
+        "catalog",
+        "schema",
+        "sql",
+        "query_limit",
+        "autorun",
+        "template_params",
+        "hide_left_bar",
+        "latest_query_id",
+        "saved_query_id",
+    }
+)
+
+
+class TabStateUpdateError(ValueError):
+    pass
+
+
+def _validate_tab_state_fields(fields: dict[str, Any]) -> None:
+    """
+    Ensure only allowlisted TabState columns are updated and that any
+    referenced Query belongs to the current user.
+    """
+    if unknown := set(fields) - TAB_STATE_UPDATABLE_FIELDS:
+        raise TabStateUpdateError(
+            __(
+                "Invalid tab state fields: %(fields)s",
+                fields=", ".join(sorted(unknown)),
+            )
+        )
+
+    if (latest_query_id := fields.get("latest_query_id")) is not None:
+        owned = (
+            db.session.query(Query.id)
+            .filter_by(client_id=latest_query_id, user_id=get_user_id())
+            .first()
+        )
+        if owned is None:
+            raise TabStateUpdateError(__("Query not found"))
 
 
 class TabStateView(BaseSupersetView):
@@ -118,9 +164,11 @@ class TabStateView(BaseSupersetView):
         tab_state = db.session.query(TabState).filter_by(id=tab_state_id).first()
         if tab_state is None:
             return Response(status=404)
-        return json_success(
-            json.dumps(tab_state.to_dict(), default=json.json_iso_dttm_ser)
-        )
+        payload = tab_state.to_dict()
+        latest_query = tab_state.latest_query
+        if latest_query is not None and latest_query.user_id != get_user_id():
+            payload["latest_query"] = None
+        return json_success(json.dumps(payload, default=json.json_iso_dttm_ser))
 
     @has_access_api
     @expose("<int:tab_state_id>/activate", methods=("POST",))
@@ -154,6 +202,7 @@ class TabStateView(BaseSupersetView):
 
         try:
             fields = {k: json.loads(v) for k, v in request.form.to_dict().items()}
+            _validate_tab_state_fields(fields)
             db.session.query(TabState).filter_by(id=tab_state_id).update(fields)
             db.session.commit()
             return json_success(json.dumps(tab_state_id))
