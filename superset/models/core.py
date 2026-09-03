@@ -56,7 +56,7 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection, Dialect, Engine
 from sqlalchemy.engine.reflection import Inspector
 from sqlalchemy.engine.url import URL
-from sqlalchemy.exc import NoSuchModuleError
+from sqlalchemy.exc import NoSuchModuleError, SQLAlchemyError
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapper, relationship
 from sqlalchemy.pool import NullPool
@@ -162,7 +162,14 @@ def clear_bootstrap_cache(
 
     try:
         cache_manager.cache.delete_memoized(cached_common_bootstrap_data)
-    except (OSError, RuntimeError, AttributeError, KeyError, redis.RedisError) as ex:
+    except (
+        OSError,
+        RuntimeError,
+        AttributeError,
+        KeyError,
+        redis.RedisError,
+        SQLAlchemyError,
+    ) as ex:
         logger.warning("Failed to clear theme bootstrap cache: %s", ex)
 
 
