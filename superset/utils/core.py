@@ -80,6 +80,7 @@ from sqlalchemy import event, exc, inspect, select, Text
 from sqlalchemy.dialects.mysql import LONGTEXT, MEDIUMTEXT
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.engine.reflection import Inspector
+from sqlalchemy.orm.exc import DetachedInstanceError, ObjectDeletedError
 from sqlalchemy.sql.type_api import Variant
 from sqlalchemy.types import TypeEngine
 from typing_extensions import TypeGuard
@@ -1547,7 +1548,7 @@ def get_username() -> str | None:
 
     try:
         return g.user.username
-    except (AttributeError, RuntimeError):
+    except (AttributeError, RuntimeError, DetachedInstanceError, ObjectDeletedError):
         return None
 
 
@@ -1565,7 +1566,7 @@ def get_user_id() -> int | None:
 
     try:
         return g.user.id
-    except (AttributeError, RuntimeError):
+    except (AttributeError, RuntimeError, DetachedInstanceError, ObjectDeletedError):
         return None
 
 
@@ -1578,7 +1579,7 @@ def get_user_email() -> str | None:
 
     try:
         return g.user.email
-    except (AttributeError, RuntimeError):
+    except (AttributeError, RuntimeError, DetachedInstanceError, ObjectDeletedError):
         return None
 
 
