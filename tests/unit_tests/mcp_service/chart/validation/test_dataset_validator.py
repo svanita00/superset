@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from superset.mcp_service.chart.schemas import ColumnRef
@@ -72,3 +74,66 @@ def test_non_numeric_type_is_rejected_for_numeric_aggregation(
     sql_type: str,
 ) -> None:
     assert _validate_sum(sql_type)[0].error_type == "invalid_aggregation"
+
+
+def _mock_dataset() -> MagicMock:
+    column = MagicMock()
+    column.column_name = "secret_column"
+    column.type = "VARCHAR"
+    metric = MagicMock()
+    metric.metric_name = "secret_metric"
+    dataset = MagicMock()
+    dataset.id = 42
+    dataset.table_name = "private_table"
+    dataset.schema = None
+    dataset.database.database_name = "database"
+    dataset.columns = [column]
+    dataset.metrics = [metric]
+    return dataset
+
+
+@pytest.mark.parametrize("dataset_id", [42, "42", "0b3e6f1e-uuid"])
+def test_get_dataset_context_denies_inaccessible_dataset(
+    dataset_id: int | str,
+) -> None:
+    dataset = _mock_dataset()
+    with (
+        patch("superset.daos.dataset.DatasetDAO.find_by_id", return_value=dataset),
+        patch(
+            "superset.mcp_service.auth.has_dataset_access", return_value=False
+        ) as access,
+    ):
+        assert DatasetValidator._get_dataset_context(dataset_id) is None
+    access.assert_called_once_with(dataset)
+
+
+def test_get_dataset_context_allows_accessible_dataset() -> None:
+    dataset = _mock_dataset()
+    with (
+        patch("superset.daos.dataset.DatasetDAO.find_by_id", return_value=dataset),
+        patch("superset.mcp_service.auth.has_dataset_access", return_value=True),
+    ):
+        context = DatasetValidator._get_dataset_context(42)
+    assert context is not None
+    assert [c["name"] for c in context.available_columns] == ["secret_column"]
+
+
+def test_validate_against_dataset_hides_schema_when_access_denied() -> None:
+    from superset.mcp_service.chart.schemas import TableChartConfig
+
+    config = TableChartConfig(
+        chart_type="table",
+        columns=[ColumnRef(name="guess_metric", saved_metric=True)],
+    )
+    with (
+        patch(
+            "superset.daos.dataset.DatasetDAO.find_by_id",
+            return_value=_mock_dataset(),
+        ),
+        patch("superset.mcp_service.auth.has_dataset_access", return_value=False),
+    ):
+        is_valid, error = DatasetValidator.validate_against_dataset(config, 42)
+    assert not is_valid
+    assert error is not None
+    assert "secret_metric" not in error.model_dump_json()
+    assert "secret_column" not in error.model_dump_json()
