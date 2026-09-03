@@ -64,6 +64,7 @@ TAB_STATE_UPDATABLE_FIELDS = frozenset(
         "autorun",
         "template_params",
         "hide_left_bar",
+        "extra_json",
         "latest_query_id",
         "saved_query_id",
     }

@@ -624,6 +624,24 @@ class TestCore(SupersetTestCase):
         data["latest_query_id"] = "null"
         response = self.client.put(f"/tabstateview/{tab_state_id}", data=data)
         assert response.status_code == 200
+        # full payload sent by the SQL Lab tab sync should be accepted
+        data = {
+            "database_id": "1",
+            "catalog": "null",
+            "schema": "null",
+            "sql": json.dumps("select 2"),
+            "label": json.dumps("renamed"),
+            "query_limit": "100",
+            "template_params": "null",
+            "hide_left_bar": "false",
+            "autorun": "false",
+            "extra_json": json.dumps(json.dumps({"updatedAt": 1, "version": 1})),
+        }
+        response = self.client.put(f"/tabstateview/{tab_state_id}", data=data)
+        assert response.status_code == 200
+        payload = self.get_json_resp(f"/tabstateview/{tab_state_id}")
+        assert payload["label"] == "renamed"
+        assert payload["extra_json"] == {"updatedAt": 1, "version": 1}
 
     def test_tabstate_update_rejects_foreign_query_and_unknown_fields(self):
         """
