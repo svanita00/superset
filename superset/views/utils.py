@@ -575,21 +575,22 @@ def build_extra_filters(  # pylint: disable=too-many-locals,too-many-nested-bloc
                 ):
                     # Ensure that the filter value encoding adheres to the filter select
                     # type.
+                    filter_val = val
                     for filter_config in filter_configs:
                         if filter_config["column"] == col:
                             is_multiple = filter_config["multiple"]
 
-                            if not is_multiple and isinstance(val, list):
-                                val = val[0]
-                            elif is_multiple and not isinstance(val, list):
-                                val = [val]
+                            if not is_multiple and isinstance(filter_val, list):
+                                filter_val = filter_val[0]
+                            elif is_multiple and not isinstance(filter_val, list):
+                                filter_val = [filter_val]
                             break
 
                     extra_filters.append(
                         {
                             "col": col,
-                            "op": "in" if isinstance(val, list) else "==",
-                            "val": val,
+                            "op": "in" if isinstance(filter_val, list) else "==",
+                            "val": filter_val,
                         }
                     )
 
