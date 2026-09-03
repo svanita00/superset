@@ -217,11 +217,11 @@ def format_markdown_table(headers: list[str], rows: list[list[Any]]) -> str:
     """
     Format headers and rows into a markdown table.
     """
-    lines = []
-    lines.append("| " + " | ".join(headers) + " |")
-    lines.append("| " + " | ".join(["---"] * len(headers)) + " |")
-    for row in rows:
-        lines.append("| " + " | ".join(str(col) for col in row) + " |")
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * len(headers)) + " |",
+    ]
+    lines.extend("| " + " | ".join(str(col) for col in row) + " |" for row in rows)
     return "\n".join(lines)
 
 
@@ -610,24 +610,26 @@ def generate_table() -> list[list[Any]]:
         "sql_comments",
         "escaped_colons",
     ]
-    for key in keys:
-        rows.append(
-            [DATABASE_DETAILS[key]] + [db_info[key] for db_info in info.values()]
-        )
+    rows.extend(
+        [DATABASE_DETAILS[key]] + [db_info[key] for db_info in info.values()]
+        for key in keys
+    )
 
     # basic
-    for time_grain in TimeGrain:
-        rows.append(
-            [f"Has time grain {time_grain.name}"]
-            + [db_info["time_grains"][time_grain.name] for db_info in info.values()]
-        )
+    rows.extend(
+        [f"Has time grain {time_grain.name}"]
+        + [db_info["time_grains"][time_grain.name] for db_info in info.values()]
+        for time_grain in TimeGrain
+    )
     keys = [
         "masked_encrypted_extra",
         "column_type_mapping",
         "function_names",
     ]
-    for key in keys:
-        rows.append([BASIC_FEATURES[key]] + [db_info[key] for db_info in info.values()])
+    rows.extend(
+        [BASIC_FEATURES[key]] + [db_info[key] for db_info in info.values()]
+        for key in keys
+    )
 
     # nice to have
     keys = [
@@ -644,10 +646,10 @@ def generate_table() -> list[list[Any]]:
         "get_metrics",
         "where_latest_partition",
     ]
-    for key in keys:
-        rows.append(
-            [NICE_TO_HAVE_FEATURES[key]] + [db_info[key] for db_info in info.values()]
-        )
+    rows.extend(
+        [NICE_TO_HAVE_FEATURES[key]] + [db_info[key] for db_info in info.values()]
+        for key in keys
+    )
 
     # advanced
     keys = [
@@ -655,10 +657,10 @@ def generate_table() -> list[list[Any]]:
         "query_cost_estimation",
         "sql_validation",
     ]
-    for key in keys:
-        rows.append(
-            [ADVANCED_FEATURES[key]] + [db_info[key] for db_info in info.values()]
-        )
+    rows.extend(
+        [ADVANCED_FEATURES[key]] + [db_info[key] for db_info in info.values()]
+        for key in keys
+    )
 
     rows.append(["Score"] + [db_info["score"] for db_info in info.values()])
 
