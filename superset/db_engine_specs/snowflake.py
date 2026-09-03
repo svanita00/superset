@@ -20,7 +20,7 @@ import logging
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, Callable, cast, Optional, TYPE_CHECKING, TypedDict
+from typing import Any, Callable, cast, ClassVar, Optional, TYPE_CHECKING, TypedDict
 from urllib import parse
 
 from apispec import APISpec
@@ -143,7 +143,9 @@ class SnowflakeEngineSpec(PostgresBaseEngineSpec):
     # `PostgresBaseEngineSpec._extended_aggregations` (MEDIAN/STDDEV_SAMP/VAR_SAMP)
     # is verified against real Postgres behavior, not Snowflake's; disable it here
     # until someone confirms the same expressions against a live Snowflake instance.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     # Snowflake doesn't support IS true/false syntax, use = true/false instead
     use_equality_for_boolean_filters = True
@@ -235,7 +237,9 @@ class SnowflakeEngineSpec(PostgresBaseEngineSpec):
         TimeGrain.YEAR: "DATE_TRUNC('YEAR', {col})",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         OBJECT_DOES_NOT_EXIST_REGEX: (
             __("%(object)s does not exist in this database."),
             SupersetErrorType.OBJECT_DOES_NOT_EXIST_ERROR,

@@ -19,7 +19,7 @@ import contextlib
 import re
 import threading
 from re import Pattern
-from typing import Any, Callable, NamedTuple, Optional
+from typing import Any, Callable, ClassVar, NamedTuple, Optional
 
 from flask_babel import gettext as __
 from sqlalchemy.engine.reflection import Inspector
@@ -247,7 +247,9 @@ class OcientEngineSpec(BaseEngineSpec):
         "install_instructions": "pip install sqlalchemy-ocient",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_INVALID_USERNAME_REGEX: (
             __('The username "%(username)s" does not exist.'),
             SupersetErrorType.CONNECTION_INVALID_USERNAME_ERROR,

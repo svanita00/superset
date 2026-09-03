@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, ClassVar
 
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -40,7 +40,9 @@ class YugabyteDBEngineSpec(PostgresBaseEngineSpec):
     # is verified against real Postgres behavior, not YugabyteDB's distributed
     # query engine; disable it here until someone confirms the same expressions
     # against a live YugabyteDB instance.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     metadata = {
         "description": (

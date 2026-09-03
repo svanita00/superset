@@ -18,7 +18,7 @@
 import logging
 import re
 from re import Pattern
-from typing import Any, Callable
+from typing import Any, Callable, ClassVar
 from urllib import parse
 
 from flask_babel import gettext as __
@@ -108,7 +108,9 @@ class StarRocksEngineSpec(MySQLEngineSpec):
     # against real MySQL behavior, not StarRocks's OLAP query engine; disable it
     # here until someone confirms the same expressions against a live StarRocks
     # instance.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     metadata = {
         "description": (
@@ -252,7 +254,9 @@ class StarRocksEngineSpec(MySQLEngineSpec):
         ),
     )
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_ACCESS_DENIED_REGEX: (
             __('Either the username "%(username)s" or the password is incorrect.'),
             SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR,

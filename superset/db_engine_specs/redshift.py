@@ -20,7 +20,7 @@ import logging
 import re
 import warnings
 from re import Pattern
-from typing import Any, Callable
+from typing import Any, Callable, ClassVar
 
 import pandas as pd
 import sqlalchemy as sa
@@ -219,7 +219,9 @@ class RedshiftEngineSpec(BasicParametersMixin, PostgresBaseEngineSpec):
         ],
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_ACCESS_DENIED_REGEX: (
             __('Either the username "%(username)s" or the password is incorrect.'),
             SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR,
@@ -291,7 +293,9 @@ class RedshiftEngineSpec(BasicParametersMixin, PostgresBaseEngineSpec):
     # GROUP, ...) with a different ORDER BY in the same query, e.g.
     # `MEDIAN(sales)` alongside `MEDIAN(margin)`: a plain function call has
     # no explicit ORDER BY clause to conflict.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {
         "MEDIAN": sa.func.median,
         "STDDEV_SAMP": PostgresBaseEngineSpec._extended_aggregations["STDDEV_SAMP"],
         "VAR_SAMP": PostgresBaseEngineSpec._extended_aggregations["VAR_SAMP"],

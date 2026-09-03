@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Callable
+from typing import Callable, ClassVar
 
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -29,7 +29,9 @@ class VerticaEngineSpec(PostgresBaseEngineSpec):
     # `PostgresBaseEngineSpec._extended_aggregations` (MEDIAN/STDDEV_SAMP/VAR_SAMP)
     # is verified against real Postgres behavior, not Vertica's; disable it here
     # until someone confirms the same expressions against a live Vertica instance.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     metadata = {
         "description": "Vertica is a column-oriented analytics database.",

@@ -16,7 +16,7 @@
 # under the License.
 import re
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from sqlalchemy.types import Date, DateTime
 
@@ -105,8 +105,8 @@ class DenodoEngineSpec(BaseEngineSpec, BasicParametersMixin):
         "P1Y": "TRUNC({col},'YEAR')",
     }
 
-    custom_errors: dict[
-        re.Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]
+    custom_errors: ClassVar[
+        dict[re.Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
     ] = {
         _ErrorPatterns.CONN_INVALID_USER_PWD_REGEX: (
             "Incorrect username or password.",

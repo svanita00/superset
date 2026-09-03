@@ -22,7 +22,7 @@ import re
 from datetime import datetime
 from decimal import Decimal
 from re import Pattern
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Any, Callable, ClassVar, Optional, TYPE_CHECKING
 from urllib import parse
 
 import sqlalchemy as sa
@@ -107,7 +107,9 @@ class MySQLEngineSpec(BasicParametersMixin, BaseEngineSpec):
     # SQL-compatible managed MySQL) -- unlike CockroachDB/Greenplum/HANA
     # relative to Postgres, none of these run a materially different query
     # engine, so no separate reset is needed.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {
         "STDDEV_SAMP": sa.func.stddev_samp,
         "VAR_SAMP": sa.func.var_samp,
     }
@@ -305,7 +307,7 @@ class MySQLEngineSpec(BasicParametersMixin, BaseEngineSpec):
             GenericDataType.STRING,
         ),
     )
-    column_type_mutators: dict[types.TypeEngine, Callable[[Any], Any]] = {
+    column_type_mutators: ClassVar[dict[types.TypeEngine, Callable[[Any], Any]]] = {
         DECIMAL: lambda val: Decimal(val) if isinstance(val, str) else val
     }
 
@@ -327,7 +329,9 @@ class MySQLEngineSpec(BasicParametersMixin, BaseEngineSpec):
 
     type_code_map: dict[int, str] = {}  # loaded from get_datatype only if needed
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_ACCESS_DENIED_REGEX: (
             __('Either the username "%(username)s" or the password is incorrect.'),
             SupersetErrorType.CONNECTION_ACCESS_DENIED_ERROR,

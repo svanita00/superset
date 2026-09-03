@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, Callable, TYPE_CHECKING, TypedDict
+from typing import Any, Callable, ClassVar, TYPE_CHECKING, TypedDict
 
 import sqlalchemy as sa
 from apispec import APISpec
@@ -210,7 +210,9 @@ class DuckDBEngineSpec(DuckDBParametersMixin, BaseEngineSpec):
     # postgres/mysql exactly for the same inputs; MEDIAN matches postgres
     # (mysql has no native MEDIAN to compare against). Inherited by
     # MotherDuckEngineSpec.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {
         "MEDIAN": sa.func.median,
         "STDDEV_SAMP": sa.func.stddev_samp,
         "VAR_SAMP": sa.func.var_samp,
@@ -305,7 +307,9 @@ class DuckDBEngineSpec(DuckDBParametersMixin, BaseEngineSpec):
         TimeGrain.YEAR: "DATE_TRUNC('year', {col})",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         COLUMN_DOES_NOT_EXIST_REGEX: (
             __('We can\'t seem to resolve the column "%(column_name)s"'),
             SupersetErrorType.COLUMN_DOES_NOT_EXIST_ERROR,
@@ -360,7 +364,7 @@ class MotherDuckEngineSpec(DuckDBEngineSpec):
 
     engine = "motherduck"
     engine_name = "MotherDuck"
-    engine_aliases: set[str] = {"duckdb"}
+    engine_aliases: ClassVar[set[str]] = {"duckdb"}
 
     metadata = {
         "description": (

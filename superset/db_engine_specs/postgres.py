@@ -21,7 +21,7 @@ import logging
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, Callable, Optional, TYPE_CHECKING
+from typing import Any, Callable, ClassVar, Optional, TYPE_CHECKING
 
 import sqlalchemy as sa
 from flask_babel import gettext as __
@@ -211,13 +211,17 @@ class PostgresBaseEngineSpec(BaseEngineSpec):
     # SQL-compatible managed Postgres). Engines that share the SQL dialect
     # but run a materially different query engine (CockroachDB, Greenplum,
     # SAP HANA) reset this to `{}` instead -- see those engine specs.
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {
         "MEDIAN": lambda col: sa.func.percentile_cont(0.5).within_group(col),
         "STDDEV_SAMP": sa.func.stddev_samp,
         "VAR_SAMP": sa.func.var_samp,
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         CONNECTION_INVALID_USERNAME_REGEX: (
             __('The username "%(username)s" does not exist.'),
             SupersetErrorType.CONNECTION_INVALID_USERNAME_ERROR,
@@ -651,7 +655,7 @@ class PostgresEngineSpec(BasicParametersMixin, PostgresBaseEngineSpec):
         ),
     )
 
-    column_type_mutators: dict[types.TypeEngine, Callable[[Any], Any]] = {
+    column_type_mutators: ClassVar[dict[types.TypeEngine, Callable[[Any], Any]]] = {
         INTERVAL: _normalize_interval,
     }
 

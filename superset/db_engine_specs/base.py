@@ -28,6 +28,7 @@ from typing import (
     Any,
     Callable,
     cast,
+    ClassVar,
     ContextManager,
     NamedTuple,
     Optional,
@@ -388,13 +389,13 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     # Documentation metadata for this engine spec. Centralizes all documentation
     # information so adding a new database only requires modifying one file.
     # See DBEngineSpecMetadata TypedDict for available fields.
-    metadata: DBEngineSpecMetadata = {}
+    metadata: ClassVar[DBEngineSpecMetadata] = {}
 
     # These attributes map the DB engine spec to one or more SQLAlchemy dialects/drivers;  # noqa: E501
     # see the ``supports_url`` and ``supports_backend`` methods below.
     engine = "base"  # str as defined in sqlalchemy.engine.engine
-    engine_aliases: set[str] = set()
-    drivers: dict[str, str] = {}
+    engine_aliases: ClassVar[set[str]] = set()
+    drivers: ClassVar[dict[str, str]] = {}
     default_driver: str | None = None
 
     # placeholder with the SQLAlchemy URI template
@@ -404,8 +405,8 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
 
     disable_ssh_tunneling = False
 
-    _date_trunc_functions: dict[str, str] = {}
-    _time_grain_expressions: dict[str | None, str] = {}
+    _date_trunc_functions: ClassVar[dict[str, str]] = {}
+    _time_grain_expressions: ClassVar[dict[str | None, str]] = {}
     _default_column_type_mappings: tuple[ColumnTypeMapping, ...] = (
         (
             re.compile(r"^string", re.IGNORECASE),
@@ -528,7 +529,7 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
 
     # type-specific functions to mutate values received from the database.
     # Needed on certain databases that return values in an unexpected format
-    column_type_mutators: dict[TypeEngine, Callable[[Any], Any]] = {}
+    column_type_mutators: ClassVar[dict[TypeEngine, Callable[[Any], Any]]] = {}
 
     # Does database support join-free timeslot grouping
     time_groupby_inline = False
@@ -574,14 +575,14 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     # Define alias for CTE
     cte_alias = "__cte"
     # A set of disallowed connection query parameters by driver name
-    disallow_uri_query_params: dict[str, set[str]] = {}
+    disallow_uri_query_params: ClassVar[dict[str, set[str]]] = {}
     # A Dict of query parameters that will always be used on every connection
     # by driver name
 
     # Whether to use equality operators (= true/false) instead of IS operators
     # for boolean filters. Some databases like Snowflake don't support IS true/false
     use_equality_for_boolean_filters = False
-    enforce_uri_query_params: dict[str, dict[str, Any]] = {}
+    enforce_uri_query_params: ClassVar[dict[str, dict[str, Any]]] = {}
 
     force_column_alias_quotes = False
     arraysize = 0
@@ -611,15 +612,15 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     requires_column_value_normalization: bool = False
     try_remove_schema_from_table_name = True  # pylint: disable=invalid-name
     run_multiple_statements_as_one = False
-    custom_errors: dict[
-        Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
     ] = {}
 
     # JSONPath fields in `encrypted_extra` that should be masked when the database is
     # edited. Can be a set of paths (labels will default to the path) or a dict mapping
     # paths to human-readable labels for import validation error messages.
     # pylint: disable=invalid-name
-    encrypted_extra_sensitive_fields: set[str] | dict[str, str] = {
+    encrypted_extra_sensitive_fields: ClassVar[set[str] | dict[str, str]] = {
         "$.*": "Encrypted Extra",
     }
 
@@ -647,7 +648,9 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     # from syntax alone -- see the MySQL engine spec for a concrete example of
     # why this distinction matters (its `VARIANCE()` computes the *population*
     # variance, not the *sample* variance `VAR_SAMP` denotes).
-    _extended_aggregations: dict[str, Callable[[ColumnElement], ColumnElement]] = {}
+    _extended_aggregations: ClassVar[
+        dict[str, Callable[[ColumnElement], ColumnElement]]
+    ] = {}
 
     @classmethod
     def get_extended_aggregation_func(
@@ -693,9 +696,9 @@ class BaseEngineSpec:  # pylint: disable=too-many-public-methods
     oauth2_token_request_type = "data"  # noqa: S105
 
     # Driver-specific query params to be included in `get_oauth2_authorization_uri`
-    oauth2_additional_auth_uri_query_params: dict[str, Any] = {}
+    oauth2_additional_auth_uri_query_params: ClassVar[dict[str, Any]] = {}
     # Driver-specific params to be included in the `get_oauth2_token` request body
-    oauth2_additional_token_request_params: dict[str, Any] = {}
+    oauth2_additional_token_request_params: ClassVar[dict[str, Any]] = {}
     # Driver-specific exception that should be mapped to OAuth2RedirectError
     oauth2_exception: type[Exception] | tuple[type[Exception], ...] = (
         OAuth2RedirectError
@@ -3044,17 +3047,17 @@ class BasicParametersMixin:
 
     # query parameter to enable encryption in the database connection
     # for Postgres this would be `{"sslmode": "verify-ca"}`, eg.
-    encryption_parameters: dict[str, str] = {}
+    encryption_parameters: ClassVar[dict[str, str]] = {}
 
     # query parameter to explicitly disable encryption, for drivers that do not
     # treat the absence of `encryption_parameters` as an unencrypted connection
     # for Databend this would be `{"sslmode": "disable"}`, eg.
-    encryption_disable_parameters: dict[str, str] = {}
+    encryption_disable_parameters: ClassVar[dict[str, str]] = {}
 
     # parameters that `validate_parameters` treats as mandatory; subclasses
     # override this to relax a parameter (e.g. `port`) without duplicating
     # the rest of `validate_parameters`
-    required_parameters: set[str] = {"host", "port", "username", "database"}
+    required_parameters: ClassVar[set[str]] = {"host", "port", "username", "database"}
 
     @classmethod
     def build_sqlalchemy_uri(  # pylint: disable=unused-argument

@@ -17,7 +17,7 @@
 import re
 from datetime import datetime
 from re import Pattern
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from flask_babel import gettext as __
 from sqlalchemy import types
@@ -115,7 +115,9 @@ class AthenaEngineSpec(BaseEngineSpec):
                                     date_add('day', 1, CAST({col} AS TIMESTAMP))))",
     }
 
-    custom_errors: dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]] = {
+    custom_errors: ClassVar[
+        dict[Pattern[str], tuple[str, SupersetErrorType, dict[str, Any]]]
+    ] = {
         SYNTAX_ERROR_REGEX: (
             __(
                 "Please check your query for syntax errors at or "
