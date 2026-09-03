@@ -31,7 +31,9 @@ from superset.commands.semantic_layer.update import (
     UpdateSemanticLayerCommand,
     UpdateSemanticViewCommand,
 )
+from superset.constants import PASSWORD_MASK
 from superset.exceptions import SupersetSecurityException
+from superset.utils import json
 
 
 def test_update_semantic_view_success(mocker: MockerFixture) -> None:
@@ -463,3 +465,74 @@ def test_update_uniqueness_same_config_same_name_fails(
         layer_uuid="layer-uuid-1",
         configuration={"schema": "prod"},
     )
+
+
+def test_update_semantic_layer_restores_masked_secrets(
+    mocker: MockerFixture,
+) -> None:
+    """Masked secret values echoed back by the client keep the stored secret."""
+    mock_model = MagicMock()
+    mock_model.type = "snowflake"
+    mock_model.configuration = (
+        '{"account": "acme", "password": "s3cret", '
+        '"auth": {"private_key": "pk", "user": "bob"}}'
+    )
+
+    dao = mocker.patch(
+        "superset.commands.semantic_layer.update.SemanticLayerDAO",
+    )
+    dao.find_by_uuid.return_value = mock_model
+    dao.update.return_value = mock_model
+    mocker.patch(
+        "superset.commands.semantic_layer.update.current_user_can_modify_object",
+    )
+    mock_cls = MagicMock()
+    mocker.patch.dict(
+        "superset.commands.semantic_layer.update.registry",
+        {"snowflake": mock_cls},
+    )
+
+    submitted = {
+        "account": "acme-new",
+        "password": PASSWORD_MASK,
+        "auth": {"private_key": PASSWORD_MASK, "user": "alice"},
+    }
+    UpdateSemanticLayerCommand("some-uuid", {"configuration": submitted}).run()
+
+    expected = {
+        "account": "acme-new",
+        "password": "s3cret",
+        "auth": {"private_key": "pk", "user": "alice"},
+    }
+    mock_cls.from_configuration.assert_called_once_with(expected)
+    attributes = dao.update.call_args.kwargs["attributes"]
+    assert json.loads(attributes["configuration"]) == expected
+
+
+def test_update_semantic_layer_new_secret_overrides_stored(
+    mocker: MockerFixture,
+) -> None:
+    """A real (non-masked) secret value replaces the stored one."""
+    mock_model = MagicMock()
+    mock_model.type = "snowflake"
+    mock_model.configuration = '{"password": "old"}'
+
+    dao = mocker.patch(
+        "superset.commands.semantic_layer.update.SemanticLayerDAO",
+    )
+    dao.find_by_uuid.return_value = mock_model
+    dao.update.return_value = mock_model
+    mocker.patch(
+        "superset.commands.semantic_layer.update.current_user_can_modify_object",
+    )
+    mock_cls = MagicMock()
+    mocker.patch.dict(
+        "superset.commands.semantic_layer.update.registry",
+        {"snowflake": mock_cls},
+    )
+
+    UpdateSemanticLayerCommand(
+        "some-uuid", {"configuration": {"password": "new"}}
+    ).run()
+
+    mock_cls.from_configuration.assert_called_once_with({"password": "new"})

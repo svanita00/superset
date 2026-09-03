@@ -36,6 +36,7 @@ from superset.commands.semantic_layer.exceptions import (
     SemanticViewNotFoundError,
     SemanticViewUpdateFailedError,
 )
+from superset.constants import PASSWORD_MASK
 from superset.errors import ErrorLevel, SupersetError, SupersetErrorType
 from superset.exceptions import SupersetSecurityException
 from superset.semantic_layers.api import SemanticLayerRestApi, SemanticViewRestApi
@@ -1113,6 +1114,123 @@ def test_serialize_layer_none_config(
 
     assert response.status_code == 200
     assert response.json["result"]["configuration"] == {}
+
+
+def _make_layer(configuration: Any, layer_type: str = "snowflake") -> MagicMock:
+    layer = MagicMock()
+    layer.uuid = uuid_lib.uuid4()
+    layer.name = "Layer"
+    layer.description = None
+    layer.type = layer_type
+    layer.cache_timeout = None
+    layer.configuration = configuration
+    layer.changed_on_delta_humanized.return_value = "1 day ago"
+    return layer
+
+
+@SEMANTIC_LAYERS_APP
+def test_get_semantic_layer_masks_well_known_secret_keys(
+    client: Any,
+    full_api_access: None,
+    mocker: MockerFixture,
+) -> None:
+    """GET /<uuid> never returns plaintext for credential-like keys."""
+    layer = _make_layer(
+        {
+            "account": "acme",
+            "password": "s3cret",
+            "Private_Key": "pk",
+            "auth": {"api_key": "k", "user": "bob", "token": None},
+            "warehouses": [{"name": "wh", "access_key": "ak"}],
+        }
+    )
+    mock_dao = mocker.patch("superset.semantic_layers.api.SemanticLayerDAO")
+    mock_dao.find_by_uuid.return_value = layer
+
+    response = client.get(f"/api/v1/semantic_layer/{layer.uuid}")
+
+    assert response.status_code == 200
+    assert response.json["result"]["configuration"] == {
+        "account": "acme",
+        "password": PASSWORD_MASK,
+        "Private_Key": PASSWORD_MASK,
+        "auth": {"api_key": PASSWORD_MASK, "user": "bob", "token": None},
+        "warehouses": [{"name": "wh", "access_key": PASSWORD_MASK}],
+    }
+    assert "s3cret" not in response.get_data(as_text=True)
+
+
+@SEMANTIC_LAYERS_APP
+def test_get_semantic_layer_masks_schema_declared_secrets(
+    client: Any,
+    full_api_access: None,
+    mocker: MockerFixture,
+) -> None:
+    """Fields the connector schema marks as password/writeOnly are masked."""
+    mock_cls = MagicMock()
+    mock_cls.configuration_class.model_json_schema.return_value = {
+        "properties": {
+            "account": {"type": "string"},
+            "pat": {"type": "string", "format": "password", "writeOnly": True},
+            "conn": {"$ref": "#/$defs/Conn"},
+        },
+        "$defs": {"Conn": {"properties": {"pin": {"x-secret": True}}}},
+    }
+    mocker.patch.dict("superset.semantic_layers.api.registry", {"snowflake": mock_cls})
+    layer = _make_layer('{"account": "acme", "pat": "abc", "conn": {"pin": "1"}}')
+    mock_dao = mocker.patch("superset.semantic_layers.api.SemanticLayerDAO")
+    mock_dao.find_by_uuid.return_value = layer
+
+    response = client.get(f"/api/v1/semantic_layer/{layer.uuid}")
+
+    assert response.status_code == 200
+    assert response.json["result"]["configuration"] == {
+        "account": "acme",
+        "pat": PASSWORD_MASK,
+        "conn": {"pin": PASSWORD_MASK},
+    }
+
+
+def test_schema_secret_keys_optional_secret_str() -> None:
+    """Optional[SecretStr] (rendered as anyOf) is detected as a secret."""
+    from pydantic import BaseModel, SecretStr
+
+    from superset.semantic_layers.api import _schema_secret_keys
+
+    class Conn(BaseModel):
+        pin: SecretStr | None = None
+
+    class Config(BaseModel):
+        account: str
+        pat: SecretStr | None = None
+        conn: Conn | None = None
+
+    assert _schema_secret_keys(Config.model_json_schema()) == {"pat", "pin"}
+
+
+@SEMANTIC_LAYERS_APP
+def test_get_list_semantic_layers_masks_secrets(
+    client: Any,
+    full_api_access: None,
+    mocker: MockerFixture,
+) -> None:
+    """GET / masks secrets for every layer in the list."""
+    layers = [
+        _make_layer('{"account": "a", "password": "one"}'),
+        _make_layer({"secret_key": "two"}),
+    ]
+    mock_dao = mocker.patch("superset.semantic_layers.api.SemanticLayerDAO")
+    mock_dao.find_all.return_value = layers
+
+    response = client.get("/api/v1/semantic_layer/")
+
+    assert response.status_code == 200
+    result = response.json["result"]
+    assert result[0]["configuration"] == {"account": "a", "password": PASSWORD_MASK}
+    assert result[1]["configuration"] == {"secret_key": PASSWORD_MASK}
+    body = response.get_data(as_text=True)
+    assert "one" not in body
+    assert "two" not in body
 
 
 def test_infer_discriminators_injects_discriminator() -> None:
